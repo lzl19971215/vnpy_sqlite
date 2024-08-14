@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 from peewee import (
@@ -39,6 +39,7 @@ class DbBarData(Model):
     exchange: str = CharField()
     datetime: datetime = DateTimeField()
     interval: str = CharField()
+    custom_interval: float = FloatField()
 
     volume: float = FloatField()
     turnover: float = FloatField()
@@ -115,6 +116,7 @@ class DbBarOverview(Model):
     symbol: str = CharField()
     exchange: str = CharField()
     interval: str = CharField()
+    custom_interval: float = FloatField()
     count: int = IntegerField()
     start: datetime = DateTimeField()
     end: datetime = DateTimeField()
@@ -156,6 +158,7 @@ class SqliteDatabase(BaseDatabase):
         symbol: str = bar.symbol
         exchange: Exchange = bar.exchange
         interval: Interval = bar.interval
+        custom_interval: timedelta = bar.custom_interval
 
         # 将BarData数据转换为字典，并调整时区
         data: list = []
@@ -166,6 +169,7 @@ class SqliteDatabase(BaseDatabase):
             d: dict = bar.__dict__
             d["exchange"] = d["exchange"].value
             d["interval"] = d["interval"].value
+            d["custom_interval"] = custom_interval.seconds
             d.pop("gateway_name")
             d.pop("vt_symbol")
             data.append(d)
@@ -180,6 +184,7 @@ class SqliteDatabase(BaseDatabase):
             DbBarOverview.symbol == symbol,
             DbBarOverview.exchange == exchange.value,
             DbBarOverview.interval == interval.value,
+            DbBarOverview.custom_interval == custom_interval.seconds
         )
 
         if not overview:
@@ -187,6 +192,7 @@ class SqliteDatabase(BaseDatabase):
             overview.symbol = symbol
             overview.exchange = exchange.value
             overview.interval = interval.value
+            overview.custom_interval = custom_interval.seconds
             overview.start = bars[0].datetime
             overview.end = bars[-1].datetime
             overview.count = len(bars)
@@ -201,6 +207,7 @@ class SqliteDatabase(BaseDatabase):
                 (DbBarData.symbol == symbol)
                 & (DbBarData.exchange == exchange.value)
                 & (DbBarData.interval == interval.value)
+                & (DbBarData.custom_interval == custom_interval.seconds)
             )
             overview.count = s.count()
 
@@ -268,7 +275,8 @@ class SqliteDatabase(BaseDatabase):
         exchange: Exchange,
         interval: Interval,
         start: datetime,
-        end: datetime
+        end: datetime,
+        custom_interval=timedelta(seconds=0)
     ) -> List[BarData]:
         """读取K线数据"""
         s: ModelSelect = (
@@ -276,6 +284,7 @@ class SqliteDatabase(BaseDatabase):
                 (DbBarData.symbol == symbol)
                 & (DbBarData.exchange == exchange.value)
                 & (DbBarData.interval == interval.value)
+                & (DbBarData.custom_interval == custom_interval.seconds)
                 & (DbBarData.datetime >= start)
                 & (DbBarData.datetime <= end)
             ).order_by(DbBarData.datetime)
